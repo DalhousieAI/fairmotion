@@ -13,7 +13,7 @@ class Joint(object):
     """Defines a joint. A hierarchy of joints form a skeleton.
 
     Joint object stores information about child/parent joints, base position
-    transforms, and additional information in a dictionary. 
+    transforms, and additional information in a dictionary.
 
     Attributes:
         name: Optional: Name of the joint. By default, we assign a randomized
@@ -185,6 +185,17 @@ class Skeleton(object):
             return False
         return True
 
+    def __repr__(self):
+        r = []
+        r.append("{}".format(self.name))
+        r.append("  Number of joints: {}".format(self.num_joints()))
+        r.append("  Number of DOFs: {}".format(self.num_dofs))
+        r.append("  Number of end-effectors: {}".format(self.num_end_effectors()))
+        r.append(f"  Up Vector: {self.v_up}")
+        r.append(f"  Facing Vector: {self.v_face}")
+        r.append(f"  Up-vector of the environment: {self.v_up_env}")
+        return "\n".join(r)
+
 
 class Pose(object):
     """Defines a pose. A list of poses forms a motion sequence.
@@ -203,7 +214,7 @@ class Pose(object):
 
     Use the `to_matrix()` to convert the pose object to numpy matrix form,
     and `from_matrix(data, skel)` to convert numpy matrix to pose object. This
-    is useful for serializing/deserializing data for batch processing, or to 
+    is useful for serializing/deserializing data for batch processing, or to
     create batched tensor data for ML model inputs.
 
     Use `get_transform(key, local)` to get joint transformation matrices, in
@@ -382,7 +393,7 @@ class Motion(object):
         """Adds a pose at the end of motion object.
 
         Args:
-            pose_data: List of pose data, where each pose 
+            pose_data: List of pose data, where each pose
         """
         self.poses.append(Pose(self.skel, pose_data))
 
@@ -392,7 +403,7 @@ class Motion(object):
 
     def time_to_frame(self, time):
         '''
-        Adding small value is necessary to prevent error 
+        Adding small value is necessary to prevent error
         arised from floating point precision
         '''
         return int(time * self.fps + 1e-05)
@@ -479,3 +490,13 @@ class Motion(object):
             pose = Pose.from_matrix(pose_data, skel, local)
             motion.poses.append(pose)
         return motion
+
+    def __repr__(self):
+        r = []
+        r.append(f"Motion: {self.name}")
+        skel = "\n  ".join(str(self.skel).split("\n"))
+        r.append(f"  Skeleton: {skel}")
+        r.append(f"  Num frames: {self.num_frames()}")
+        r.append(f"  Length: {self.length():.3f}s")
+        r.append(f"  FPS: {self.fps}")
+        return "\n".join(r)

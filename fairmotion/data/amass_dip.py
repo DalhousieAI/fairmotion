@@ -64,6 +64,7 @@ SMPL_JOINTS = [
 SMPL_JOINT_MAPPING = {i: x for i, x in enumerate(SMPL_JOINTS)}
 
 # this are the offsets stored under `J` in the SMPL model pickle file
+# specifically, the female model in v1.1.0 and v1.0.0 because they are the same
 OFFSETS = np.array(
     [
         [-8.76308970e-04, -2.11418723e-01, 2.78211200e-02],
