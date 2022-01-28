@@ -19,6 +19,7 @@ Structure of pkl file in AIST dataset is as follows.
 
 def load(
     file,
+    sequence=None,
     motion=None,
     scale=1.0,
     load_skel=True,
@@ -62,21 +63,29 @@ def load(
         # Assume 60fps
         motion.set_fps(60.0)
         dt = float(1 / motion.fps)
-        with open(file, "rb") as f:
-            data = pkl.load(f)
-            poses = np.array(data["smpl_poses"])  # shape (seq_length, 135)
-            assert len(poses) > 0, "file is empty"
-            poses = poses.reshape((-1, len(SMPL_JOINTS), 3))
+        # load poses from sequence
+        if sequence is not None:
+            sequence = sequence.reshape(-1, 72)
+            poses = sequence
+            assert len(poses) > 0, "sequence is empty"
+        # load poses from file
+        else:
+            with open(file, "rb") as f:
+                data = pkl.load(f)
+                poses = np.array(data["smpl_poses"])  # shape (seq_length, 135)
+                assert len(poses) > 0, "file is empty"
 
-            for pose_id, pose in enumerate(poses):
-                pose_data = [
-                    constants.eye_T() for _ in range(len(SMPL_JOINTS))
-                ] # identity transition matrices
-                for joint_id, joint_name in enumerate(SMPL_JOINTS):
-                    pose_data[
-                        motion.skel.get_index_joint(joint_name)
-                    ] = conversions.A2T(pose[joint_id])
-                motion.add_one_frame(pose_data)
+        poses = poses.reshape((-1, len(SMPL_JOINTS), 3))
+
+        for pose_id, pose in enumerate(poses):
+            pose_data = [
+                constants.eye_T() for _ in range(len(SMPL_JOINTS))
+            ] # identity transition matrices
+            for joint_id, joint_name in enumerate(SMPL_JOINTS):
+                pose_data[
+                    motion.skel.get_index_joint(joint_name)
+                ] = conversions.A2T(pose[joint_id])
+            motion.add_one_frame(pose_data)
 
     return motion
 
@@ -166,6 +175,9 @@ def _load(file, bm=None, bm_path=None, model_type="smplh"):
 
 if __name__ == "__main__":
     motion = load("../../tests/data/aistplusplus_sample.pkl")
-    _motion = _load("../../tests/data/aistplusplus_sample.pkl", bm_path="../../tests/body_models/female.pkl")
+    _motion = _load("../../tests/data/aistplusplus_sample.pkl", bm_path="../../tests/body_models/model.npz")
     print(motion)
     print(_motion)
+    motion = np.load("../../tests/data/aistplusplus_sample.pkl", allow_pickle=True)
+    motion = load(None, sequence=motion['smpl_poses'])
+    print(motion)
