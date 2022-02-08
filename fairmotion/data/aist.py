@@ -82,49 +82,12 @@ def load(
 
 
 def _load(file, bm=None, bm_path=None, model_type="smplh"):
-    from human_body_prior.body_model.body_model import BodyModel
     num_betas = 10
     if bm is None:
         # Download the required body model. For SMPL-H download it from
         # http://mano.is.tue.mpg.de/.
         assert bm_path is not None, "Please provide SMPL body model path"
-        from pathlib import Path
-        import tempfile
-        import scipy.sparse
-        bm_path = Path(bm_path).resolve()
-        assert bm_path.exists(), "Please provide valid SMPL body model path"
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            # this is a hack to make it possible to load from pkl
-            if bm_path.suffix == ".pkl":
-                hack_bm_path = Path(tmpdirname) / (bm_path.stem + ".npz")
-                with open(bm_path, "rb") as f:
-                    try:
-                        data = pkl.load(f, encoding="latin1")
-                    except ModuleNotFoundError as e:
-                        if "chumpy" in str(e):
-                            message = ("Failed to load pickle file because "
-                                "chumpy is not installed.\n"
-                                "The original SMPL body model archives store "
-                                "some arrays as chumpy arrays, these are cast "
-                                "back to numpy arrays before use but it is not "
-                                "possible to unpickle the data without chumpy "
-                                "installed.")
-                            raise ModuleNotFoundError(message) from e
-                        else:
-                            raise e
-                    def clean(x):
-                        if 'chumpy' in str(type(x)):
-                            return np.array(x)
-                        elif type(x) == scipy.sparse.csc.csc_matrix:
-                            return x.toarray()
-                        else:
-                            return x
-                    data = {k: clean(v) for k,v in data.items() if type(v)}
-                    data = {k: v for k,v in data.items() if type(v) == np.ndarray}
-                    np.savez(hack_bm_path, **data)
-            else:
-                hack_bm_path = bm_path
-            bm = amass.load_body_model(str(hack_bm_path), num_betas, model_type)
+        bm = amass.load_body_model(bm_path, num_betas, model_type)
 
     skel = amass.create_skeleton_from_amass_bodymodel(
         bm, None, len(amass.joint_names), amass.joint_names,
