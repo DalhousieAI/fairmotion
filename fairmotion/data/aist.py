@@ -19,6 +19,7 @@ Structure of pkl file in AIST dataset is as follows.
 
 def load(
     file,
+    sequence=None,
     motion=None,
     scale=1.0,
     load_skel=True,
@@ -62,32 +63,77 @@ def load(
         # Assume 60fps
         motion.set_fps(60.0)
         dt = float(1 / motion.fps)
-        with open(file, "rb") as f:
-            data = pkl.load(f)
-            poses = np.array(data["smpl_poses"])  # shape (seq_length, 135)
-            assert len(poses) > 0, "file is empty"
-            poses = poses.reshape((-1, len(SMPL_JOINTS), 3))
+        # load poses from sequence
+        if sequence is not None:
+            sequence = sequence.reshape(-1, 72)
+            poses = sequence
+            assert len(poses) > 0, "sequence is empty"
+        # load poses from file
+        else:
+            with open(file, "rb") as f:
+                data = pkl.load(f)
+                poses = np.array(data["smpl_poses"])  # shape (seq_length, 135)
+                assert len(poses) > 0, "file is empty"
 
-            for pose_id, pose in enumerate(poses):
-                pose_data = [
-                    constants.eye_T() for _ in range(len(SMPL_JOINTS))
-                ] # identity transition matrices
-                for joint_id, joint_name in enumerate(SMPL_JOINTS):
-                    pose_data[
-                        motion.skel.get_index_joint(joint_name)
-                    ] = conversions.A2T(pose[joint_id])
-                motion.add_one_frame(pose_data)
+        poses = poses.reshape((-1, len(SMPL_JOINTS), 3))
+
+        for pose_id, pose in enumerate(poses):
+            pose_data = [
+                constants.eye_T() for _ in range(len(SMPL_JOINTS))
+            ] # identity transition matrices
+            for joint_id, joint_name in enumerate(SMPL_JOINTS):
+                pose_data[
+                    motion.skel.get_index_joint(joint_name)
+                ] = conversions.A2T(pose[joint_id])
+            motion.add_one_frame(pose_data)
 
     return motion
 
 
 def _load(file, bm=None, bm_path=None, model_type="smplh"):
+    from human_body_prior.body_model.body_model import BodyModel
     num_betas = 10
     if bm is None:
         # Download the required body model. For SMPL-H download it from
         # http://mano.is.tue.mpg.de/.
         assert bm_path is not None, "Please provide SMPL body model path"
-        bm = amass.load_body_model(bm_path, num_betas, model_type)
+        from pathlib import Path
+        import tempfile
+        import scipy.sparse
+        bm_path = Path(bm_path).resolve()
+        assert bm_path.exists(), "Please provide valid SMPL body model path"
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            # this is a hack to make it possible to load from pkl
+            if bm_path.suffix == ".pkl":
+                hack_bm_path = Path(tmpdirname) / (bm_path.stem + ".npz")
+                with open(bm_path, "rb") as f:
+                    try:
+                        data = pkl.load(f, encoding="latin1")
+                    except ModuleNotFoundError as e:
+                        if "chumpy" in str(e):
+                            message = ("Failed to load pickle file because "
+                                "chumpy is not installed.\n"
+                                "The original SMPL body model archives store "
+                                "some arrays as chumpy arrays, these are cast "
+                                "back to numpy arrays before use but it is not "
+                                "possible to unpickle the data without chumpy "
+                                "installed.")
+                            raise ModuleNotFoundError(message) from e
+                        else:
+                            raise e
+                    def clean(x):
+                        if 'chumpy' in str(type(x)):
+                            return np.array(x)
+                        elif type(x) == scipy.sparse.csc.csc_matrix:
+                            return x.toarray()
+                        else:
+                            return x
+                    data = {k: clean(v) for k,v in data.items() if type(v)}
+                    data = {k: v for k,v in data.items() if type(v) == np.ndarray}
+                    np.savez(hack_bm_path, **data)
+            else:
+                hack_bm_path = bm_path
+            bm = amass.load_body_model(str(hack_bm_path), num_betas, model_type)
 
     skel = amass.create_skeleton_from_amass_bodymodel(
         bm, None, len(amass.joint_names), amass.joint_names,
@@ -129,6 +175,9 @@ def _load(file, bm=None, bm_path=None, model_type="smplh"):
 
 if __name__ == "__main__":
     motion = load("../../tests/data/aistplusplus_sample.pkl")
-    _motion = _load("../../tests/data/aistplusplus_sample.pkl", bm_path="../../tests/body_models/female.pkl")
+    _motion = _load("../../tests/data/aistplusplus_sample.pkl", bm_path="../../tests/body_models/model.npz")
     print(motion)
     print(_motion)
+    motion = np.load("../../tests/data/aistplusplus_sample.pkl", allow_pickle=True)
+    motion = load(None, sequence=motion['smpl_poses'])
+    print(motion)
