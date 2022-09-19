@@ -72,23 +72,32 @@ def load(
         else:
             with open(file, "rb") as f:
                 data = pkl.load(f)
-                poses = np.array(data["smpl_poses"])  # shape (seq_length, 135)
+                poses = np.array(data["smpl_poses"])
+                trans = np.array(data["smpl_trans"])
+                trans /= 100 # m to cm
                 assert len(poses) > 0, "file is empty"
 
         poses = poses.reshape((-1, len(SMPL_JOINTS), 3))
 
         for pose_id, pose in enumerate(poses):
+            trans_data = trans[pose_id]
             pose_data = [
                 constants.eye_T() for _ in range(len(SMPL_JOINTS))
             ] # identity transition matrices
             for joint_id, joint_name in enumerate(SMPL_JOINTS):
-                pose_data[
-                    motion.skel.get_index_joint(joint_name)
-                ] = conversions.A2T(pose[joint_id])
+                if joint_id == 0:
+                    pose_data[
+                        motion.skel.get_index_joint(joint_name)
+                    ] = conversions.Rp2T(
+                            conversions.A2R(pose[joint_id]), trans_data
+                        )
+                else:
+                    pose_data[
+                        motion.skel.get_index_joint(joint_name)
+                    ] = conversions.A2T(pose[joint_id])
             motion.add_one_frame(pose_data)
 
     return motion
-
 
 def _load(file, bm=None, bm_path=None, model_type="smplh"):
     from human_body_prior.body_model.body_model import BodyModel
@@ -121,6 +130,7 @@ def _load(file, bm=None, bm_path=None, model_type="smplh"):
                             raise ModuleNotFoundError(message) from e
                         else:
                             raise e
+
                     def clean(x):
                         if 'chumpy' in str(type(x)):
                             return np.array(x)
@@ -128,8 +138,9 @@ def _load(file, bm=None, bm_path=None, model_type="smplh"):
                             return x.toarray()
                         else:
                             return x
-                    data = {k: clean(v) for k,v in data.items() if type(v)}
-                    data = {k: v for k,v in data.items() if type(v) == np.ndarray}
+
+                    data = {k: clean(v) for k, v in data.items() if type(v)}
+                    data = {k: v for k, v in data.items() if type(v) == np.ndarray}
                     np.savez(hack_bm_path, **data)
             else:
                 hack_bm_path = bm_path
@@ -144,7 +155,7 @@ def _load(file, bm=None, bm_path=None, model_type="smplh"):
         fps = 60
         root_orient = bdata["smpl_poses"][:, :3]  # controls the global root orientation
         pose_body = bdata["smpl_poses"][:, 3:66]  # controls body joint angles
-        trans = bdata["smpl_trans"][:, :3] / bdata["smpl_scaling"][0] # controls global position
+        trans = bdata["smpl_trans"][:, :3] / bdata["smpl_scaling"][0]  # controls global position
 
         motion = motion_class.Motion(skel=skel, fps=fps)
 
@@ -164,7 +175,7 @@ def _load(file, bm=None, bm_path=None, model_type="smplh"):
                 else:
                     T = conversions.R2T(
                         conversions.A2R(
-                            pose_body_frame[(j - 1) * 3 : (j - 1) * 3 + 3]
+                            pose_body_frame[(j - 1) * 3: (j - 1) * 3 + 3]
                         )
                     )
                 pose_data.append(T)
@@ -181,3 +192,8 @@ if __name__ == "__main__":
     motion = np.load("../../tests/data/aistplusplus_sample.pkl", allow_pickle=True)
     motion = load(None, sequence=motion['smpl_poses'])
     print(motion)
+    # motion with translation
+    import bvh
+    motion = load("../../tests/data/aistplusplus_sample.pkl")
+    print(motion)
+    bvh.save(motion, "output.bvh")
