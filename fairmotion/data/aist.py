@@ -185,14 +185,14 @@ def _load(file, bm=None, bm_path=None, model_type="smplh"):
         return grounded_motion
 
 if __name__ == "__main__":
-    motion = load("../../tests/data/aistplusplus_sample.pkl")
-    _motion = _load("../../tests/data/aistplusplus_sample.pkl", bm_path="../../tests/body_models/model.npz")
-    print(motion)
-    print(_motion)
-    motion = np.load("../../tests/data/aistplusplus_sample.pkl", allow_pickle=True)
-    motion = load(None, sequence=motion['smpl_poses'])
-    print(motion)
-    # motion with translation
+    # motion = load("../../tests/data/aistplusplus_sample.pkl")
+    # _motion = _load("../../tests/data/aistplusplus_sample.pkl", bm_path="../../tests/body_models/model.npz")
+    # print(motion)
+    # print(_motion)
+    # motion = np.load("../../tests/data/aistplusplus_sample.pkl", allow_pickle=True)
+    # motion = load(None, sequence=motion['smpl_poses'])
+    # print(motion)
+    # # motion with translation
     import bvh
     motion = load("../../tests/data/aistplusplus_sample.pkl")
     print(motion)

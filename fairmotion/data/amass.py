@@ -88,7 +88,7 @@ def create_motion_from_amass_data(filename, bm, override_betas=None):
         betas = torch.Tensor(override_betas[:10][np.newaxis]).to("cpu")
     else:
         betas = torch.Tensor(bdata["betas"][:10][np.newaxis]).to("cpu")
-    
+
     skel = create_skeleton_from_amass_bodymodel(
         bm, betas, len(joint_names), joint_names,
     )
@@ -127,11 +127,48 @@ def create_motion_from_amass_data(filename, bm, override_betas=None):
 
 def load_body_model(bm_path, num_betas=10, model_type="smplh"):
     comp_device = torch.device("cpu")
-    bm = BodyModel(
-        bm_fname=bm_path, 
-        num_betas=num_betas, 
-        # model_type=model_type
-    ).to(comp_device)
+    from pathlib import Path
+    import tempfile
+    import scipy.sparse
+    import pickle as pkl
+    bm_path = Path(bm_path).resolve()
+    assert bm_path.exists(), "Please provide valid SMPL body model path"
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # this is a hack to make it possible to load from pkl
+        if bm_path.suffix == ".pkl":
+            hack_bm_path = Path(tmpdirname) / (bm_path.stem + ".npz")
+            with open(bm_path, "rb") as f:
+                try:
+                    data = pkl.load(f, encoding="latin1")
+                except ModuleNotFoundError as e:
+                    if "chumpy" in str(e):
+                        message = ("Failed to load pickle file because "
+                            "chumpy is not installed.\n"
+                            "The original SMPL body model archives store "
+                            "some arrays as chumpy arrays, these are cast "
+                            "back to numpy arrays before use but it is not "
+                            "possible to unpickle the data without chumpy "
+                            "installed.")
+                        raise ModuleNotFoundError(message) from e
+                    else:
+                        raise e
+                def clean(x):
+                    if 'chumpy' in str(type(x)):
+                        return np.array(x)
+                    elif type(x) == scipy.sparse.csc.csc_matrix:
+                        return x.toarray()
+                    else:
+                        return x
+                data = {k: clean(v) for k,v in data.items() if type(v)}
+                data = {k: v for k,v in data.items() if type(v) == np.ndarray}
+                np.savez(hack_bm_path, **data)
+        else:
+            hack_bm_path = bm_path
+        bm = BodyModel(
+            bm_fname=str(hack_bm_path),
+            num_betas=num_betas,
+            # model_type=model_type
+        ).to(comp_device)
     return bm
 
 
