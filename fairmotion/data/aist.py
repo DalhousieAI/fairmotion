@@ -27,6 +27,7 @@ def load(
     v_up_skel=np.array([0.0, 1.0, 0.0]),
     v_face_skel=np.array([0.0, 0.0, 1.0]),
     v_up_env=np.array([0.0, 1.0, 0.0]),
+    root_translation=False,
 ):
     from fairmotion.data.amass_dip import OFFSETS, SMPL_JOINTS, SMPL_PARENTS
     if motion is None:
@@ -73,8 +74,11 @@ def load(
             with open(file, "rb") as f:
                 data = pkl.load(f)
                 poses = np.array(data["smpl_poses"])
-                trans = np.array(data["smpl_trans"])
-                trans /= 100 # m to cm
+                if root_translation:
+                    trans = np.array(data["smpl_trans"])
+                    trans /= 100 # m to cm
+                else:
+                    trans = np.zeros((len(poses), 3))
                 assert len(poses) > 0, "file is empty"
 
         poses = poses.reshape((-1, len(SMPL_JOINTS), 3))
@@ -196,4 +200,7 @@ if __name__ == "__main__":
     import bvh
     motion = load("../../tests/data/aistplusplus_sample.pkl")
     print(motion)
-    bvh.save(motion, "output.bvh")
+    bvh.save(motion, "output_noroot.bvh")
+    motion = load("../../tests/data/aistplusplus_sample.pkl", root_translation=True)
+    print(motion)
+    bvh.save(motion, "output_withroot.bvh")
