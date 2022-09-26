@@ -76,7 +76,10 @@ def load(
                 poses = np.array(data["smpl_poses"])
                 if root_translation:
                     trans = np.array(data["smpl_trans"])
-                    trans /= 100 # m to cm
+                    if "smpl_scaling" in data:
+                        trans /= data["smpl_scaling"][0]
+                    else:
+                        trans /= 89.524 # mean scaling parameter from AIST++
                 else:
                     trans = np.zeros((len(poses), 3))
                 assert len(poses) > 0, "file is empty"
