@@ -68,6 +68,7 @@ def load(
         if sequence is not None:
             sequence = sequence.reshape(-1, 72)
             poses = sequence
+            trans = np.zeros((len(poses), 3))
             assert len(poses) > 0, "sequence is empty"
         # load poses from file
         else:
